@@ -142,13 +142,26 @@ def read_version_info():
 
 
 async def download_if_necessary():
+    """
+    Download the TLS client asset if necessary.
+    
+    This function checks if the required TLS client library exists, and downloads it if not found.
+    It automatically creates the dependencies directory if it doesn't exist.
+    
+    :raises TLSClientException: If the version has no assets or the required asset cannot be found
+    """
     version_num, asset_url = await get_latest_release()
     if not asset_url or not version_num:
         raise TLSClientException(f"Version {version_num} does not have any assets.")
 
+    # Ensure dependencies directory exists
+    dependencies_dir = f'{root_directory}/dependencies'
+    if not os.path.exists(dependencies_dir):
+        os.makedirs(dependencies_dir)
+
     asset_name = generate_asset_name(custom_part=repo, version=version_num)
     # Check if asset name is in the list of assets in root dir/dependencies
-    if os.path.exists(f'{root_directory}/dependencies/{asset_name}'):
+    if os.path.exists(f'{dependencies_dir}/{asset_name}'):
         return
 
     download_url = [asset['browser_download_url'] for asset in asset_url if asset['name'] == asset_name]
