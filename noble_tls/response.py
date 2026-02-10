@@ -17,6 +17,7 @@ class Response:
         self.cookies = cookiejar_from_dict({})  # Cookies sent back by the server.
         self._content: Optional[bytes] = None  # The byte content of the response.
         self._content_consumed: bool = False  # Tracks if the content has been consumed.
+        self.used_protocol: Optional[str] = None  # The protocol used (e.g. "HTTP/2.0", "HTTP/3.0", "h3")
         self.history = []
 
     def __enter__(self):
@@ -53,6 +54,7 @@ def build_response(res: Dict[str, Any], res_cookies) -> Response:
     response.url = res.get("target")  # Extract the target URL from the response data.
     response.status_code = res.get("status", 0)  # Default to 0 if status is not provided.
     response.text = res.get("body", "")  # Default to empty string if body is not provided.
+    response.used_protocol = res.get("usedProtocol")  # The protocol used (e.g. "HTTP/2.0", "h3")
 
     # Process headers, ensuring single values are not wrapped in a list.
     response_headers = CaseInsensitiveDict()

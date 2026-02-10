@@ -28,6 +28,9 @@ pip install omar6995-noble-tls
 - [x] Custom TLS extension order
 - [x] `requests`'s `history` support
 - [x] `requests`'s `allow_redirects` support
+- [x] HTTP/3 (QUIC) support with accurate browser fingerprints
+- [x] Protocol Racing (Happy Eyeballs) - races HTTP/2 vs HTTP/3 simultaneously
+- [x] Custom HTTP/3 SETTINGS, pseudo header order, GREASE frames
 - [x] much more...
 
 # Examples
@@ -193,7 +196,52 @@ async def main():
     print(res.text)
 ```
 
-Example 3 - AWS Mode:
+Example 3 - HTTP/3 with Preset Profile:
+
+```python
+import noble_tls
+from noble_tls import Client
+
+
+async def main():
+    await noble_tls.update_if_necessary()
+    
+    # Use a preset profile with HTTP/3 enabled via protocol racing.
+    # The Go library already has accurate HTTP/3 fingerprints baked into
+    # modern browser profiles (Chrome 144+, Firefox 147+).
+    session = noble_tls.Session(
+        client=Client.CHROME_146,
+        random_tls_extension_order=True,
+        enable_protocol_racing=True  # Race HTTP/2 vs HTTP/3, use whichever connects first
+    )
+    
+    res = await session.get("https://www.example.com/")
+    print(f"Protocol used: {res.used_protocol}")  # e.g. "h3" or "HTTP/2.0"
+    print(res.text)
+```
+
+Example 4 - HTTP/3 Options:
+
+```python
+import noble_tls
+from noble_tls import Client
+
+
+async def main():
+    await noble_tls.update_if_necessary()
+    
+    # You can also disable HTTP/3 entirely if needed
+    session = noble_tls.Session(
+        client=Client.CHROME_146,
+        disable_http3=True  # Forces fallback to HTTP/2
+    )
+    
+    res = await session.get("https://www.example.com/")
+    print(f"Protocol used: {res.used_protocol}")  # Will be "HTTP/2.0"
+    print(res.text)
+```
+
+Example 5 - AWS Mode:
 
 ```python
 import noble_tls
