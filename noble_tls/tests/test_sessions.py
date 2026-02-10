@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from ..sessions import Session
 from ..utils.structures import CaseInsensitiveDict
+from ..utils.identifiers import Client
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -56,3 +57,33 @@ async def test_session_execute_request(mocker):
 
     assert response.status_code == 200, "Response should have a status code of 200"
     assert response.text == 'OK', "Response body should be 'OK'"
+
+
+@pytest.mark.asyncio
+async def test_session_with_safari_ios_26_0():
+    session = Session(client=Client.SAFARI_IOS_26_0)
+    assert session.client_identifier == "safari_ios_26_0"
+
+
+@pytest.mark.asyncio
+async def test_session_with_chrome_146():
+    session = Session(client=Client.CHROME_146)
+    assert session.client_identifier == "chrome_146"
+
+
+@pytest.mark.asyncio
+async def test_session_with_chrome_146_psk():
+    session = Session(client=Client.CHROME_146_PSK)
+    assert session.client_identifier == "chrome_146_PSK"
+
+
+@pytest.mark.asyncio
+async def test_session_with_firefox_146():
+    session = Session(client=Client.FIREFOX_146)
+    assert session.client_identifier == "firefox_146"
+
+
+@pytest.mark.asyncio
+async def test_session_with_firefox_147():
+    session = Session(client=Client.FIREFOX_147)
+    assert session.client_identifier == "firefox_147"
