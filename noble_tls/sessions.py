@@ -37,18 +37,27 @@ class Session:
             header_priority: Optional[dict] = None,  # Optional[list[str]]
             random_tls_extension_order: Optional = False,
             force_http1: Optional = False,
+            disable_http3: Optional = False,
+            enable_protocol_racing: Optional = False,
             catch_panics: Optional = False,
             debug: Optional = False,
             transportOptions: Optional[dict] = None,
             connectHeaders: Optional[dict] = None,
-            isAws: Optional[bool] = False
+            isAws: Optional[bool] = False,
+            # HTTP/3 custom fingerprint settings (only used with custom JA3, ignored with preset profiles)
+            h3_settings: Optional[dict] = None,  # Optional[dict[str, int]] - QUIC SETTINGS frame values
+            h3_settings_order: Optional[list] = None,  # Optional[list[str]] - Order of QUIC SETTINGS
+            h3_pseudo_header_order: Optional[list] = None,  # Optional[list[str]] - Pseudo header order for HTTP/3
+            h3_priority_param: Optional[int] = None,  # PRIORITY_UPDATE frame parameter
+            h3_send_grease_frames: Optional[bool] = False,  # Whether to send GREASE frames over QUIC
     ) -> None:
         """
         Initialize a Noble TLS Session.
         
         Args:
-            client: TLS client identifier
-            ja3_string: JA3 fingerprint string  
+            client: TLS client identifier (preset profile). When using a preset profile,
+                    HTTP/3 fingerprints are already built into the Go library.
+            ja3_string: JA3 fingerprint string for custom TLS configuration
             h2_settings: HTTP/2 settings dictionary
             h2_settings_order: Order of HTTP/2 settings
             supported_signature_algorithms: List of supported signature algorithms
@@ -63,13 +72,26 @@ class Session:
             header_order: Order of headers
             header_priority: Header priority configuration
             random_tls_extension_order: Whether to randomize TLS extension order
-            force_http1: Whether to force HTTP/1.1
+            force_http1: Whether to force HTTP/1.1 (disables HTTP/2 and HTTP/3)
+            disable_http3: Whether to disable HTTP/3 (will fall back to HTTP/2)
+            enable_protocol_racing: Whether to enable protocol racing (Happy Eyeballs).
+                                    Races HTTP/2 (TCP+TLS) vs HTTP/3 (QUIC) simultaneously,
+                                    using whichever connects first. Ignored if force_http1
+                                    or disable_http3 is set.
             catch_panics: Whether to catch Go panics
             debug: Whether to enable debug mode
             transportOptions: Transport options configuration
             connectHeaders: Connect headers configuration
             isAws: If True, load .so/.dll/.dylib files from data directory instead of downloading. 
                    Useful for AWS Lambda or environments where downloads are restricted.
+            h3_settings: HTTP/3 (QUIC) SETTINGS frame values. Only used with custom JA3.
+                         Example: {"SETTINGS_MAX_FIELD_SECTION_SIZE": 262144,
+                                   "SETTINGS_QPACK_MAX_TABLE_CAPACITY": 0}
+            h3_settings_order: Order of HTTP/3 SETTINGS. Only used with custom JA3.
+            h3_pseudo_header_order: Pseudo header order for HTTP/3 requests. Only used with custom JA3.
+                                    Example: [":method", ":authority", ":scheme", ":path"]
+            h3_priority_param: PRIORITY_UPDATE frame parameter for HTTP/3. Only used with custom JA3.
+            h3_send_grease_frames: Whether to send GREASE frames over QUIC. Only used with custom JA3.
         """
         self.client_identifier = client.value if client else None
         self._session_id = random_session_id()
@@ -298,6 +320,19 @@ class Session:
         # force HTTP1
         self.force_http1 = force_http1
 
+        # disable HTTP/3 (falls back to HTTP/2)
+        self.disable_http3 = disable_http3
+
+        # enable protocol racing (Happy Eyeballs: races HTTP/2 vs HTTP/3 simultaneously)
+        self.enable_protocol_racing = enable_protocol_racing
+
+        # HTTP/3 custom fingerprint settings (only used with custom JA3 string, not preset profiles)
+        self.h3_settings = h3_settings
+        self.h3_settings_order = h3_settings_order
+        self.h3_pseudo_header_order = h3_pseudo_header_order
+        self.h3_priority_param = h3_priority_param
+        self.h3_send_grease_frames = h3_send_grease_frames
+
         self.transportOptions = transportOptions
 
         self.connectHeaders = connectHeaders
@@ -416,6 +451,8 @@ class Session:
                 "sessionId": self._session_id,
                 "followRedirects": allow_redirects,
                 "forceHttp1": self.force_http1,
+                "disableHttp3": self.disable_http3,
+                "withProtocolRacing": self.enable_protocol_racing,
                 "withDebug": self.debug,
                 "catchPanics": self.catch_panics,
                 "headers": dict(headers),
@@ -448,8 +485,13 @@ class Session:
                     "supportedSignatureAlgorithms": self.supported_signature_algorithms,
                     "supportedDelegatedCredentialsAlgorithms": self.supported_delegated_credentials_algorithms,
                     "keyShareCurves": self.key_share_curves,
-                    "alpnProtocols": ['h2','http/1.1'],
-                    'alpsProtocols': ['h2']
+                    "alpnProtocols": ['h2', 'http/1.1'],
+                    "alpsProtocols": ['h2'],
+                    "h3Settings": self.h3_settings,
+                    "h3SettingsOrder": self.h3_settings_order,
+                    "h3PseudoHeaderOrder": self.h3_pseudo_header_order,
+                    "h3PriorityParam": self.h3_priority_param if self.h3_priority_param is not None else 0,
+                    "h3SendGreaseFrames": self.h3_send_grease_frames,
                 }
             else:
                 request_payload["tlsClientIdentifier"] = self.client_identifier
